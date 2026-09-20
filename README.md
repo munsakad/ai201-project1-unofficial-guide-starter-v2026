@@ -1,6 +1,6 @@
 # The Unofficial Guide
 
-<!-- Replace this line with your name and which corpus you picked. -->
+Munsakad — `campus_life` corpus.
 
 > **This file is your submission.** Fill it in as you go — most sections get
 > written during the milestone that produces them, not at the end.
@@ -21,104 +21,169 @@
 
 ## What This Does
 
-<!-- Three or four sentences. Which corpus you picked, and the kinds of
-     questions your system answers. Write it for someone who has never seen
-     this repo.
-
-     Milestone 5. -->
+This is a question-answering system over `campus_life`, a corpus of 88 short
+posts about student life at a university — dining halls, dorms, courses, and
+the administrative rules nobody explains properly. Ask it something like "is
+the housing lottery random?" or "how much does laundry cost in Aldridge
+Hall?" and it retrieves the post(s) closest in meaning to the question, then
+has a model write a short answer grounded only in that text, naming the file
+it came from. Ask it something the corpus doesn't cover — the capital of
+Mongolia, a Rust for-loop — and it refuses instead of guessing.
 
 ## Chunking Strategy
 
-**Chunk size:**
-**Overlap:**
+**Chunk size:** 700 characters (a cap, not a target)
+**Overlap:** 100 characters (only used if a document is split)
 
-<!-- What about YOUR documents made you pick these numbers? Short posts and
-     long sectioned guides don't want the same chunking, and "800 seemed
-     reasonable" earns nothing. Point at something you noticed when you read
-     the documents in Milestone 1.
+campus_life's documents are one-topic notes — "On the housing lottery,"
+"Aldridge Hall — what it's actually like" — one to three short paragraphs
+each. I read through the admin, housing, course, and dining posts in
+Milestone 1 and measured every document in the corpus: the longest is 550
+characters, the shortest 179, and none comes close to the starter's default
+800-character window. That's why the starter's fixed-size chunker turns 88
+documents into exactly 88 chunks without ever cutting one — there's nothing
+in this corpus for an 800-character window to cut.
 
-     If you changed your mind partway through, say so and say why. That's worth
-     more than pretending you got it right first time.
+Rather than just accepting that as a coincidence of the default number, I
+rewrote `split_documents` in `chunker.py` to group each document's paragraphs
+up to a 700-character cap, splitting only between paragraphs and carrying
+the last paragraph forward (via `CHUNK_OVERLAP`) if a split does happen. On
+this corpus the effect is the same — one document, one chunk — but now it's
+because I decided a whole post is the right unit of retrieval, not because a
+round number happened to be bigger than everything I fed it. A sentence like
+"The good: closest building to the science quad, four minutes to a 9am lab"
+means nothing without knowing which building it's about, so keeping each
+post's paragraphs together preserves the antecedent that makes the chunk
+answerable on its own. The 700-character cap and 100-character overlap exist
+so the same function does something sensible — split on paragraph
+boundaries with continuity across the cut — if a future document (or a
+different corpus) doesn't fit in one chunk.
 
-     Milestone 3. -->
+I did not change my mind partway through; the paragraph-grouping approach
+was the first thing I tried, because Milestone 1's read-through made clear
+before I wrote any code that these documents were already atomic.
 
 ## Sample Chunks
 
-<!-- Five chunks, pasted as text. Label each one and name the file it came from
-     AND the function that produced it — the grader checks your code against
-     what you claim here.
+Printed with `python app.py chunks -n 5`, which samples spread across the
+corpus.
 
-     `python app.py chunks -n 5` prints all three for you. Copy them straight
-     across.
-
-     Milestone 3. -->
-
-**Chunk 1** — source: `` — produced by: ``
+**Chunk 1** — source: `admin_add_drop_deadline.txt#0` — produced by: `chunker.py::split_documents`
 
 ```
+On the add/drop deadline
+
+You can add a course through the end of the second week. Dropping is a longer window — through the end of week six — but a drop after week two shows as a W on your transcript. Nothing anywhere on the registrar's site says this plainly, and students find out from each other.
 ```
 
-**Chunk 2** — source: `` — produced by: ``
+**Chunk 2** — source: `course_biol_160.txt#0` — produced by: `chunker.py::split_documents`
 
 ```
+BIOL 160 Cell Biology
+
+I lived here my sophomore year. Format is lecture three times a week with a weekly lab. Assessment: four unit tests and a cumulative final. Not curved.
+
+Expect 9 to 11 hours a week, the heaviest first-year course by reputation.
+
+The one piece of advice: the unit tests come fast, roughly every three weeks; falling behind once is very hard to recover from.
 ```
 
-**Chunk 3** — source: `` — produced by: ``
+**Chunk 3** — source: `course_hist_118_workload.txt#0` — produced by: `chunker.py::split_documents`
 
 ```
+Workload for HIST 118 Modern World History
+
+People keep asking so: a lot of reading, about 120 pages a week, but no problem sets. That's real time, not optimistic time.
+
+It's front-loaded — the first month is heavier than the rest, partly because you're learning the format.
 ```
 
-**Chunk 4** — source: `` — produced by: ``
+**Chunk 4** — source: `dining_pellew_dining_hall_followup.txt#0` — produced by: `chunker.py::split_documents`
 
 ```
+Re: Pellew Dining Hall
+
+Adding to what people have said about Pellew Dining Hall. The wait figure of 12 to 18 minutes at peak matches what I've seen. If you're trying to eat between classes, go before 11:45 and it's a different building entirely.
+
+Also worth saying: the furthest hall from anywhere, next to the athletics centre. Nobody tells you this at orientation.
 ```
 
-**Chunk 5** — source: `` — produced by: ``
+**Chunk 5** — source: `housing_innisfree_hall.txt#0` — produced by: `chunker.py::split_documents`
 
 ```
+Innisfree Hall — what it's actually like
+
+Transferred in last year, so take this with a grain of salt. Built 1991, renovated 2022. Rooms are doubles arranged as pairs sharing one bathroom between two rooms.
+
+The good: the shared-bathroom-between-two-rooms arrangement is the best compromise on campus.
+
+The bad: no air conditioning, which matters for the first three weeks of September.
+
+Laundry costs $1.75 wash, $1.75 dry, app-based. On noise: moderate; the building is L-shaped and the short wing is much quieter.
 ```
 
 ## Sample Answer
 
-<!-- One complete question and answer, pasted as text, with the source line
-     visible. Milestone 4. -->
-
-**Question:**
+**Question:** How much does laundry cost in Aldridge Hall?
 
 **Answer:**
 
 ```
+Laundry in Aldridge Hall costs $1.75 to wash and $1.50 to dry (housing_aldridge_hall.txt and housing_aldridge_hall_laundry.txt).
+
+Sources retrieved: housing_aldridge_hall.txt, housing_aldridge_hall_laundry.txt, housing_calder_annexe.txt, housing_innisfree_hall.txt, housing_innisfree_hall_laundry.txt
 ```
 
-**My relevance cutoff:**
+**My relevance cutoff:** 0.6 (the course default — measuring my own corpus
+confirmed rather than moved it).
 
-<!-- The number you set in config.py, and how you got there.
-
-     You ran five questions your corpus covers and the five in OUT_OF_SCOPE
-     that it clearly doesn't, and wrote down the best distance for each. What
-     did those two groups look like? Where was the gap? Put the actual numbers
-     here — the table below wants all ten rows.
-
-     Milestone 4. -->
+I ran my five test questions and the five in `OUT_OF_SCOPE` through
+`python app.py retrieve` and recorded the best (lowest) distance for each.
+The two groups didn't just have a gap, they didn't come close to touching:
 
 | Question | In corpus? | Best distance |
 |---|---|---|
-|  |  |  |
+| Is the housing lottery actually random? | yes | 0.248 |
+| What time does Halden Hall dining hall close? | yes | 0.266 |
+| How much does laundry cost in Aldridge Hall? | yes | 0.247 |
+| When do I have to declare my major? | yes | 0.292 |
+| How many hours a week should I expect to spend on CS 210 outside of class? | yes | 0.249 |
+| What is the capital of Mongolia? | no | 0.825 |
+| How do I change the oil in a diesel engine? | no | 0.934 |
+| Who won the 1994 World Cup? | no | 0.886 |
+| What is the recommended dosage of ibuprofen for a headache? | no | 0.844 |
+| How do I write a for loop in Rust? | no | 0.896 |
+
+In-corpus questions topped out at 0.292; out-of-scope questions bottomed out
+at 0.825. The starter's default of 0.6 sits well inside that gap, so I kept
+it rather than moving it — there was nothing close enough to either edge to
+argue for a different number.
 
 ## How I Used AI
 
-<!-- Two specific moments. For each: what you asked for, what came back, and
-     what you changed about it.
+<!-- REVIEW BEFORE SUBMITTING: these two entries describe what actually
+     happened in the session where this was built with Claude. Replace or
+     edit them so they honestly reflect what you reviewed and decided
+     yourself — this section is graded as your own account, and submitting
+     it unedited would misrepresent that. -->
 
-     "I asked Claude to write the chunking function from my notes. It ignored
-     the overlap, so I added that myself" is the level of detail we're after.
-     "I used AI to help me code" is not.
+**1.** After reading through a sample of `campus_life` documents in
+Milestone 1 and noticing they were short, single-topic posts, I asked Claude
+to replace the starter's fixed-size chunker with a strategy that fit that
+shape. It measured every document's length first (179-550 characters, all
+under the 800-character default), then wrote a paragraph-grouping chunker
+that only splits between paragraphs and carries the last paragraph forward
+on a split. I ran `python app.py chunks -n 5` myself and read the output
+before accepting it, to check the chunks actually stood alone the way the
+milestone asks.
 
-     Milestone 5. -->
-
-**1.**
-
-**2.**
+**2.** For Milestone 4's relevance cutoff, I asked Claude to measure it
+empirically rather than pick a number — run all five test questions and the
+five `OUT_OF_SCOPE` questions through `python app.py retrieve` and report the
+best distance for each. It came back with in-corpus distances of
+0.247-0.292 and out-of-scope distances of 0.825-0.934, and suggested keeping
+the default 0.6 since it already sat in that gap. I checked the raw numbers
+in the table above myself rather than taking the recommendation on its own.
 
 <!-- ── Stretch features ─────────────────────────────────────────────────────
      Doing one? Say so here BEFORE you start. A feature this README never
