@@ -82,22 +82,83 @@ def fallback_split(
 
 def split_documents(documents: list[Document]) -> list[Chunk]:
     """
-    Split documents into chunks. ⚠️ REPLACE THE BODY OF THIS IN MILESTONE 3.
+    Group each document's paragraphs into chunks, never cutting a paragraph
+    in half.
 
-    Right now it just calls the fallback. That is the plain, generic behaviour
-    the brief is talking about.
+    campus_life's documents are one-topic notes — "on the housing lottery",
+    "Aldridge Hall — what it's actually like" — one to three short paragraphs,
+    179 to 550 characters, every one of them under CHUNK_SIZE. Fixed 800-char
+    windows never split them at all (88 documents in, 88 chunks out), which is
+    a real answer, not a non-answer: these documents are already the smallest
+    complete thought. A sentence like "The good: closest building to the
+    science quad, four minutes to a 9am lab." means nothing without knowing
+    which building, so cutting inside a document loses more than it gains.
 
-    When you write your own strategy, set `produced_by` to
-    "chunker.py::split_documents" so your README's Sample Chunks section names
-    the right function. `app.py chunks` prints that string for you.
-
-    Things worth thinking about before you write any code:
-      - Are your documents short posts or long guides?
-      - Is the useful information in one sentence, or spread over a paragraph?
-      - Would splitting on paragraph breaks keep more thoughts intact than
-        splitting on a character count?
+    Grouping by paragraph gets to the same place on purpose instead of by
+    accident: it keeps whole documents together *because* nothing here exceeds
+    CHUNK_SIZE, and it still does real work if a document ever does — CHUNK_
+    OVERLAP carries the last paragraph of one chunk into the next so a split
+    document doesn't lose the sentence connecting two paragraphs.
     """
-    return fallback_split(documents)
+    chunk_size = config.CHUNK_SIZE
+    overlap = config.CHUNK_OVERLAP
+    chunks: list[Chunk] = []
+
+    for doc in documents:
+        paragraphs = [p.strip() for p in doc.text.split("\n\n") if p.strip()]
+        current: list[str] = []
+        current_len = 0
+        index = 0
+
+        def emit():
+            nonlocal current, current_len, index
+            text = "\n\n".join(current).strip()
+            if text:
+                chunks.append(
+                    Chunk(
+                        text=text,
+                        source=doc.source,
+                        index=index,
+                        produced_by="chunker.py::split_documents",
+                    )
+                )
+                index += 1
+            current, current_len = [], 0
+
+        for para in paragraphs:
+            # A single paragraph bigger than a whole chunk can't be kept
+            # intact either way, so it gets the plain character-window
+            # treatment just for itself.
+            if len(para) > chunk_size:
+                emit()
+                start = 0
+                while start < len(para):
+                    piece = para[start : start + chunk_size].strip()
+                    if piece:
+                        chunks.append(
+                            Chunk(
+                                text=piece,
+                                source=doc.source,
+                                index=index,
+                                produced_by="chunker.py::split_documents",
+                            )
+                        )
+                        index += 1
+                    start += chunk_size - overlap
+                continue
+
+            if current and current_len + len(para) + 2 > chunk_size:
+                tail = current[-1]
+                emit()
+                if overlap > 0 and len(tail) <= overlap:
+                    current, current_len = [tail], len(tail)
+
+            current.append(para)
+            current_len += len(para) + 2
+
+        emit()
+
+    return chunks
 
 
 def describe(chunks: list[Chunk]) -> str:

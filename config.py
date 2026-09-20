@@ -27,8 +27,9 @@ CORPUS = os.getenv("AI201_CORPUS", "campus_life")
 # These are deliberately plain, generic numbers. Milestone 3 is where you
 # replace them with numbers that fit the documents you actually read.
 
-CHUNK_SIZE = 800        # characters per chunk
-CHUNK_OVERLAP = 120     # characters shared between neighbouring chunks
+CHUNK_SIZE = 700        # characters per chunk (a cap for paragraph grouping,
+                        # not a target — see chunker.py::split_documents)
+CHUNK_OVERLAP = 100     # characters shared between neighbouring chunks
 
 
 # ─── Retrieval (Milestone 4) ─────────────────────────────────────────────────
